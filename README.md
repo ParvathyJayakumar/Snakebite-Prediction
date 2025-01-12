@@ -87,10 +87,3 @@ The model architecture incorporates:
    ```bash  
    python predict.py --image_path /path/to/image.jpg  
    ```  
----  
-
-## Acknowledgments  
-- **EfficientNet**: For its state-of-the-art transfer learning capabilities.  
-- **TensorFlow/Keras**: For providing powerful deep learning tools.  
-
-Feel free to customize the repository and README as needed to suit your project structure. 😊

@@ -1,68 +1,64 @@
+import tensorflow as tf
 from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from prepare_data import val_generator  # Ensure your validation data generator is correctly imported
 
-# Load the trained model
-model = load_model('best_model.keras')  # Load the best model saved during training
+# Function to plot confusion matrix
+def plot_confusion_matrix(cm, classes):
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='g', cmap='Blues', xticklabels=classes, yticklabels=classes)
+    plt.title('Confusion Matrix')
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.show()
 
-# Evaluate the model on the validation data
-loss, accuracy = model.evaluate(val_generator, steps=val_generator.samples // val_generator.batch_size)
+# Function to evaluate the model
+def evaluate_model(model_path, test_data_dir, batch_size=32, img_size=(224, 224)):
+    # Load the trained model
+    model = load_model(model_path)
 
-# Print the evaluation results
-print(f"Validation Loss: {loss:.4f}")
-print(f"Validation Accuracy: {accuracy:.4f}")
+    # Prepare test data using ImageDataGenerator
+    test_datagen = ImageDataGenerator(rescale=1.0/255.0)
+    test_generator = test_datagen.flow_from_directory(
+        test_data_dir,
+        target_size=img_size,
+        batch_size=batch_size,
+        class_mode='binary',
+        shuffle=False
+    )
 
-# If you want to get the predicted labels and true labels for further analysis
-y_true = []
-y_pred = []
+    # Evaluate the model on the test data
+    print("Evaluating the model...")
+    test_loss, test_acc = model.evaluate(test_generator)
+    print(f"Test Loss: {test_loss:.4f}")
+    print(f"Test Accuracy: {test_acc:.4f}")
 
-# Use an iterator to loop over the generator
-for i, (x_batch, y_batch) in enumerate(val_generator):
-    print(f"Processing batch {i + 1}")
-    
-    # Check if the batch is empty
-    if len(x_batch) == 0 or len(y_batch) == 0:
-        print(f"Warning: Empty batch at index {i}")
-        continue  # Skip this batch if it's empty
+    # Predict the class labels for the test data
+    test_generator.reset()
+    predictions = model.predict(test_generator, verbose=1)
+    predicted_classes = np.round(predictions).astype(int).flatten()
 
-    # True labels (integer form)
-    y_true.extend(np.argmax(y_batch, axis=1))  # Get the true labels as integers
-    
-    # Predictions (probabilities)
-    y_pred_batch = model.predict(x_batch)
+    # Get the true labels
+    true_classes = test_generator.classes
+    class_labels = list(test_generator.class_indices.keys())
 
-    # Check if predictions were made
-    if len(y_pred_batch) == 0:
-        print(f"Warning: Model did not generate predictions for batch {i}")
-        continue  # Skip this batch if no predictions are made
+    # Generate confusion matrix and classification report
+    cm = confusion_matrix(true_classes, predicted_classes)
+    print("Classification Report:")
+    print(classification_report(true_classes, predicted_classes, target_names=class_labels))
 
-    # Predicted labels (integer form)
-    y_pred.extend(np.argmax(y_pred_batch, axis=1))  # Get the predicted labels as integers
+    # Plot confusion matrix
+    plot_confusion_matrix(cm, class_labels)
 
-# Ensure both y_true and y_pred have the same length
-if len(y_true) != len(y_pred):
-    raise ValueError(f"Mismatch in length of true labels and predicted labels: {len(y_true)} != {len(y_pred)}")
+if __name__ == '__main__':
+    # Hardcoded values for the model evaluation
+    model_path="./best_model.keras"   # Replace with your model path
+    test_data_dir = "./dataset/test"       # Replace with your test data directory
+    batch_size = 32                            # You can modify this if needed
+    img_size = (224, 224)                      # Modify if your images need different size
 
-# Make sure y_true and y_pred are not empty
-if len(y_true) == 0 or len(y_pred) == 0:
-    raise ValueError("y_true or y_pred is empty!")
-
-# Classification report (precision, recall, F1-score)
-print("\nClassification Report:")
-target_names = list(val_generator.class_indices.keys())  # Get class labels from the generator
-print(classification_report(y_true, y_pred, target_names=target_names))
-
-# Confusion Matrix
-conf_matrix = confusion_matrix(y_true, y_pred)
-
-# Plot confusion matrix
-plt.figure(figsize=(8, 6))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=val_generator.class_indices, yticklabels=val_generator.class_indices)
-plt.title('Confusion Matrix')
-
-plt.xlabel('Predicted Labels')
-plt.ylabel('True Labels')
-plt.show()
+    # Call the evaluation function
+    evaluate_model(model_path, test_data_dir, batch_size, img_size)
